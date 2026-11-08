@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Model gallery</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #bfe3f5; overflow: hidden; font-family: sans-serif; }
+      #labels div { position: absolute; transform: translate(-50%, 0); font: 700 12px sans-serif; color: #222; background: #fff9; padding: 1px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" style="width:100%;height:100%;display:block"></canvas>
+    <div id="labels"></div>
+    <script type="module" src="/src/gallery.ts"></script>
+  </body>
+</html>

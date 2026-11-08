@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mat, box, cyl, rbox, COLORS } from './models';
+import { model, has } from './assets';
 
 type Part = { geo: THREE.BufferGeometry; color: number; pos?: [number, number, number]; rot?: [number, number, number]; scale?: [number, number, number] };
 
@@ -64,7 +65,7 @@ export const pumpkinGeo = build(pumpkinParts());
 export const PUMPKIN_ORANGE = 0xff8c1a;
 export const PUMPKIN_GREEN = 0x8fd14f;
 export const pumpkinMat = new THREE.MeshLambertMaterial({ vertexColors: true, color: PUMPKIN_ORANGE });
-export function makePumpkin(m: THREE.Material = pumpkinMat) {
+function proc_makePumpkin(m: THREE.Material = pumpkinMat) {
   return vmesh(pumpkinGeo, m);
 }
 
@@ -75,7 +76,7 @@ export const appleGeo = build([
   { geo: C(0.012, 0.015, 0.08, 4), color: 0x6b4423, pos: [0, 0.25, 0] },
   { geo: B(0.08, 0.01, 0.04), color: 0x4caf50, pos: [0.04, 0.25, 0], rot: [0, 0, 0.4] },
 ]);
-export function makeApple() { return vmesh(appleGeo, vcSmooth); }
+function proc_makeApple() { return vmesh(appleGeo, vcSmooth); }
 
 export const ciderGeo = build([
   { geo: C(0.15, 0.16, 0.3, 10), color: 0xd98a2b, pos: [0, 0.15, 0] },
@@ -85,7 +86,7 @@ export const ciderGeo = build([
   { geo: new THREE.TorusGeometry(0.07, 0.022, 5, 8, Math.PI), color: 0xd98a2b, pos: [0.13, 0.27, 0], rot: [0, 0, -Math.PI / 2] },
   { geo: S(0.035, 6, 4), color: 0xe8352b, pos: [0, 0.16, 0.16] },
 ]);
-export function makeCider() { return vmesh(ciderGeo); }
+function proc_makeCider() { return vmesh(ciderGeo); }
 
 export const pieGeo = build([
   { geo: C(0.25, 0.2, 0.1, 14), color: 0xd9a05b, pos: [0, 0.05, 0] },
@@ -93,14 +94,8 @@ export const pieGeo = build([
   { geo: new THREE.TorusGeometry(0.22, 0.035, 5, 14), color: 0xf0c27a, pos: [0, 0.1, 0], rot: [Math.PI / 2, 0, 0] },
   { geo: S(0.06, 6, 4), color: 0xffffff, pos: [0, 0.12, 0], scale: [1, 0.5, 1] },
 ]);
-export function makePie() { return vmesh(pieGeo); }
+function proc_makePie() { return vmesh(pieGeo); }
 
-export function makeItem(kind: 'pumpkin' | 'apple' | 'cider' | 'pie') {
-  if (kind === 'pumpkin') return makePumpkin();
-  if (kind === 'apple') return makeApple();
-  if (kind === 'cider') return makeCider();
-  return makePie();
-}
 
 // ---------------- Plot (soil + vine) ----------------
 export const soilGeo = build([
@@ -123,7 +118,7 @@ export const sproutGeo = build([
 ]);
 
 // ---------------- Trees ----------------
-export function makeAppleTree() {
+function proc_makeAppleTree() {
   const g = new THREE.Group();
   g.add(vmesh(build([
     { geo: C(0.13, 0.2, 1.1, 7), color: 0x8a5a33, pos: [0, 0.55, 0] },
@@ -158,7 +153,7 @@ export function makeFallTree(scale = 1, color = FALL[0]) {
 }
 export const FALL_COLORS = FALL;
 
-export function makePine(scale = 1) {
+function proc_makePine(scale = 1) {
   const g = vmesh(build([
     { geo: C(0.1, 0.14, 0.6, 6), color: 0x7a4f2e, pos: [0, 0.3, 0] },
     { geo: new THREE.ConeGeometry(0.8, 1.4, 7), color: 0x2e8b57, pos: [0, 1.2, 0] },
@@ -186,7 +181,7 @@ export const hayGeo = build([
   { geo: B(0.97, 0.05, 0.62), color: 0xc9a040, pos: [0, 0.15, 0] },
   { geo: B(0.9, 0.04, 0.5), color: 0xf3d77a, pos: [0, 0.56, 0] },
 ]);
-export function makeHay() { return vmesh(hayGeo); }
+function proc_makeHay() { return vmesh(hayGeo); }
 
 export function makeScarecrow() {
   return vmesh(build([
@@ -211,7 +206,7 @@ export function makeSunflower() {
   ]));
 }
 
-export function makeRailFence(len: number) {
+function proc_makeRailFence(len: number) {
   const parts: Part[] = [];
   const n = Math.max(1, Math.round(len / 1.6));
   for (let i = 0; i <= n; i++) parts.push({ geo: B(0.14, 0.8, 0.14), color: 0xffffff, pos: [-len / 2 + (i * len) / n, 0.4, 0] });
@@ -281,7 +276,7 @@ export function makeGate() {
   return g;
 }
 
-export function makeBarn() {
+function proc_makeBarn() {
   const g = new THREE.Group();
   const red = 0xc8392b;
   const body = box(3.8, 2.2, 3.0, red);
@@ -662,4 +657,152 @@ export function makeBasketCrate() {
     { geo: B(0.8, 0.45, 0.6), color: 0xc28a52, pos: [0, 0.225, 0] },
     { geo: B(0.82, 0.06, 0.62), color: 0xa8733f, pos: [0, 0.4, 0] },
   ]));
+}
+
+
+// =====================================================================
+// CC0 model versions (Quaternius / Kenney via poly.pizza). Fall back to the
+// procedural versions above if a model failed to load.
+// =====================================================================
+
+const tint = (o: THREE.Object3D, matName: string, color: number) => {
+  o.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    mats.forEach((mm, i) => {
+      if (mm.name !== matName) return;
+      const cl = (mm as THREE.MeshStandardMaterial).clone();
+      cl.color.setHex(color);
+      if (Array.isArray(m.material)) m.material[i] = cl; else m.material = cl;
+    });
+  });
+};
+
+const sharedPumpkin = new Map<string, THREE.Object3D>();
+export function makePumpkin(m?: THREE.Material) {
+  if (!has('pumpkin') || m) return proc_makePumpkin(m);
+  let base = sharedPumpkin.get('ripe');
+  if (!base) {
+    base = model('pumpkin', { height: 0.42 });
+    tint(base, 'Orange', PUMPKIN_ORANGE);
+    tint(base, 'Brown', 0x5c8a2e);
+    sharedPumpkin.set('ripe', base);
+  }
+  return base.clone(true);
+}
+
+/** A pumpkin whose body colour can be animated (green -> orange) while it grows. */
+export function makeGrowingPumpkin(): { obj: THREE.Object3D; color: THREE.Color } {
+  if (!has('pumpkin')) {
+    const pm = new THREE.MeshLambertMaterial({ vertexColors: true, color: PUMPKIN_GREEN });
+    return { obj: proc_makePumpkin(pm), color: pm.color };
+  }
+  const o = model('pumpkin', { height: 0.42 });
+  tint(o, 'Brown', 0x5c8a2e);
+  let col: THREE.Color | null = null;
+  o.traverse((c) => {
+    const m = c as THREE.Mesh;
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    mats.forEach((mm, i) => {
+      if (mm.name !== 'Orange') return;
+      const cl = (mm as THREE.MeshStandardMaterial).clone();
+      cl.color.setHex(PUMPKIN_GREEN);
+      col = cl.color;
+      if (Array.isArray(m.material)) m.material[i] = cl; else m.material = cl;
+    });
+  });
+  return { obj: o, color: col ?? new THREE.Color() };
+}
+
+const once = (key: string, make: () => THREE.Object3D) => {
+  const cache = once as unknown as { m?: Map<string, THREE.Object3D> };
+  cache.m ??= new Map();
+  let b = cache.m.get(key);
+  if (!b) { b = make(); cache.m.set(key, b); }
+  return b.clone(true);
+};
+
+export function makeApple() {
+  if (!has('apple')) return proc_makeApple();
+  return once('apple', () => model('apple', { height: 0.26 }));
+}
+export function makeCider() {
+  if (!has('jug')) return proc_makeCider();
+  return once('jug', () => { const j = model('jug', { height: 0.44 }); tint(j, 'Material.001', 0xd98a2b); return j; });
+}
+export function makePie() {
+  if (!has('pie')) return proc_makePie();
+  return once('pie', () => model('pie', { width: 0.5 }));
+}
+export function makeHay() {
+  if (!has('hay')) return proc_makeHay();
+  return once('hay', () => model('hay', { height: 0.8 }));
+}
+export function makePine(scale = 1) {
+  if (!has('pine')) return proc_makePine(scale);
+  const p = once('pine', () => model('pine', { height: 3.6 }));
+  p.scale.setScalar(scale * 0.75);
+  return p;
+}
+export function makeAppleTree() {
+  if (!has('tree')) return proc_makeAppleTree();
+  const g = new THREE.Group();
+  const t = once('tree', () => model('tree', { height: 3.3 }));
+  g.add(t);
+  g.userData.canopy = t;
+  const spots: THREE.Vector3[] = [];
+  const dirs = [[0.75, 1.9, 0.75], [-0.7, 1.8, 0.7], [0.1, 1.65, 1.0], [1.0, 2.25, 0.15], [-0.95, 2.3, 0.25], [0.35, 2.7, 0.8], [-0.35, 2.75, 0.65]];
+  for (const d of dirs) spots.push(new THREE.Vector3(d[0], d[1], d[2]));
+  g.userData.spots = spots;
+  return g;
+}
+export function makeBarn() {
+  if (!has('barn')) return proc_makeBarn();
+  const g = new THREE.Group();
+  const b = model('barn', { height: 4.4 });
+  g.add(b);
+  if (has('silo')) {
+    const silo = model('silo', { height: 5.6 });
+    silo.position.set(2.9, 0, -0.6);
+    g.add(silo);
+  }
+  return g;
+}
+export function makeRailFence(len: number) {
+  if (!has('fence')) return proc_makeRailFence(len);
+  const g = new THREE.Group();
+  const seg = 2.95;
+  const n = Math.max(1, Math.round(len / seg));
+  const sc = len / n / seg;
+  for (let i = 0; i < n; i++) {
+    const f = once('fence', () => model('fence', { width: seg }));
+    f.scale.x = sc;
+    f.position.x = -len / 2 + (i + 0.5) * (len / n);
+    g.add(f);
+  }
+  return g;
+}
+export function makeItem(kind: 'pumpkin' | 'apple' | 'cider' | 'pie') {
+  if (kind === 'pumpkin') return makePumpkin();
+  if (kind === 'apple') return makeApple();
+  if (kind === 'cider') return makeCider();
+  return makePie();
+}
+
+/** Car from CC0 models, recoloured. Faces +z. */
+export function makeCar(color: number): THREE.Group | null {
+  const kinds = ['car', 'car2', 'pickup', 'wagon_car'].filter(has);
+  if (!kinds.length) return null;
+  const k = kinds[Math.floor(Math.random() * kinds.length)];
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const m = model(k, { width: k === 'pickup' ? 3.3 : 3.1 });
+  if (k === 'car') tint(m, 'Blue', color);
+  if (k === 'car2') tint(m, 'LightBlue', color);
+  body.add(m);
+  g.userData = { body, type: k };
+  return g;
 }

@@ -98,13 +98,20 @@ html, body {
 @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
 #objective {
-  position: absolute; top: 76px; left: 50%; transform: translateX(-50%);
-  color: #fff; font-weight: 700; font-size: 21px; white-space: nowrap;
-  -webkit-text-stroke: 4px #2b3045; paint-order: stroke fill;
-  text-shadow: 0 3px 0 rgba(43,48,69,.55);
-  display: flex; gap: 6px; align-items: center;
+  position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border-radius: 18px; padding: 6px 14px 6px 6px;
+  box-shadow: 0 4px 0 rgba(43,48,69,.25); min-width: 190px; max-width: 86%;
 }
-#objective-icon { display: none; }
+#obj-icon {
+  width: 46px; height: 46px; border-radius: 13px; background: linear-gradient(#e6f4ff, #c9e6ff);
+  display: flex; align-items: center; justify-content: center; font-size: 28px; flex: none;
+}
+#obj-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#obj-bar { position: relative; height: 16px; width: 120px; background: #2b3045; border-radius: 9px; overflow: hidden; }
+#obj-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: linear-gradient(#8ef06a, #3aae2c); transition: width .3s; }
+#obj-count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+#objective-text { color: #2b3045; font-weight: 700; font-size: 16px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #objective.pop { animation: objpop .45s cubic-bezier(.34,1.56,.64,1); }
 @keyframes objpop { 0% { transform: translateX(-50%) scale(.5); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
 

@@ -1,7 +1,9 @@
 import './style.css';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Game } from './game';
 import { signs } from './farm';
+import { loadModels, MODELS } from './assets';
 import { Particles, WorldUI, Shake } from './fx';
 import { sfx } from './audio';
 import { tweens, clamp, damp } from './util';
@@ -18,11 +20,15 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
+// soft image-based light so the CC0 PBR models are not dark
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.75;
 scene.background = new THREE.Color(0xbfe3f5);
 scene.fog = new THREE.Fog(0xbfe3f5, 48, 90);
 
 const camera = new THREE.PerspectiveCamera(40, 9 / 16, 0.5, 200);
-const CAM_OFFSET = new THREE.Vector3(0, 24, 16);
+const CAM_OFFSET = new THREE.Vector3(0, 21, 14.5);
 
 scene.add(new THREE.HemisphereLight(0xfff4e0, 0xb7d99a, 1.55));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -39,9 +45,17 @@ const particles = new Particles(scene);
 const ui = new WorldUI($('world-ui'), camera);
 const shake = new Shake();
 
+const btnStart = $<HTMLButtonElement>('btn-start');
+btnStart.textContent = 'LOADING…';
+btnStart.disabled = true;
+await loadModels(MODELS, (d, t) => { btnStart.textContent = `LOADING ${Math.round((d / t) * 100)}%`; });
+btnStart.textContent = 'TAP TO PLAY';
+btnStart.disabled = false;
+
 const game = new Game(scene, camera, particles, ui, shake, {
   money: $('money'), moneyBox: $('money-box'), levelNum: $('level-num'), levelFill: $('level-fill'), levelText: $('level-text'), levelStar: $('level-star'),
   objective: $('objective'), objectiveText: $('objective-text'), banner: $('banner'), stage,
+  objIcon: $('obj-icon'), objBar: $('obj-bar'), objFill: $('obj-fill'), objCount: $('obj-count'),
 });
 (window as any).__game = game;
 
@@ -150,7 +164,7 @@ function frame(now: number) {
   camTarget.x = damp(camTarget.x, clamp(p.x, -10.5, 10.5), 5, real);
   camTarget.z = damp(camTarget.z, clamp(p.z, -18.5, 10.5), 5, real);
   camera.position.copy(camTarget).add(CAM_OFFSET).add(shake.offset);
-  camera.lookAt(camTarget.x + shake.offset.x, 0, camTarget.z - 1.5 + shake.offset.z);
+  camera.lookAt(camTarget.x + shake.offset.x, 0, camTarget.z - 2.2 + shake.offset.z);
   sun.position.set(camTarget.x - 8, 20, camTarget.z + 10);
   sun.target.position.set(camTarget.x, 0, camTarget.z);
   ui.update(real);

@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { CFG, UNLOCK, type ItemKind } from './config';
 import * as M from './models';
 import * as F from './farm';
+import { makeChar, animateChar, type Char } from './chars';
+import * as A from './assets';
 import { Particles, WorldUI, Shake } from './fx';
 import { Stack, CashPile, Pad } from './parts';
 import { sfx } from './audio';
@@ -59,7 +61,7 @@ function makeZonePlate(icon: string, size = 1.6, color = 'rgba(255,255,255,0.22)
 // Layout (north = -z, the road and parking are south at +z)
 // =====================================================================
 const L = {
-  playerStart: V(0.5, 0, 6.5),
+  playerStart: V(-1.6, 0, 6.9),
   hub: V(0.4, 0, 10.6),
   gateIn: V(0, 0, 11.4),
   gateOut: V(0, 0, 13.4),
@@ -67,17 +69,17 @@ const L = {
   parkZ: 14.7,
   parkSlots: [-13.8, -11.2, -8.6, -6.0, -3.4, 3.4, 6.0, 8.6, 11.2, 13.8],
   bounds: { minX: -15.6, maxX: 15.6, minZ: -20.2, maxZ: 12.0 } as Rect,
-  patchCols: [-6.4, -5.15, -3.9, -2.65],
-  patchA: [7.6, 6.35, 5.1],
-  patchB: [3.85, 2.6, 1.35],
-  stand: V(2.9, 0, 8.6),
-  standDrop: V(2.9, 0, 7.15),
-  standCash: V(5.0, 0, 7.3),
+  patchCols: [-6.6, -5.6, -4.6, -3.6, -2.6],
+  patchA: [7.6, 6.6, 5.6, 4.6],
+  patchB: [3.5, 2.5, 1.5],
+  stand: V(2.4, 0, 8.6),
+  standDrop: V(2.4, 0, 7.15),
+  standCash: V(4.5, 0, 7.3),
   booth: V(-3.0, 0, 11.0),
   boothPay: V(-3.0, 0, 9.75),
   upickCash: V(-1.35, 0, 10.0),
   upickWait: V(-1.3, 0, 6.4),
-  barn: V(-11.2, 0, 8.4),
+  barn: V(-11.6, 0, 7.6),
   farmhouse: V(-12.6, 0, 2.6),
   trees: [V(7.2, 0, 4.6), V(9.8, 0, 4.6), V(12.4, 0, 4.6), V(7.2, 0, 1.4), V(9.8, 0, 1.4), V(12.4, 0, 1.4)],
   ciderStand: V(7.6, 0, 9.0),
@@ -105,10 +107,10 @@ const L = {
 // =====================================================================
 
 type Plot = {
-  pos: THREE.Vector3; root: THREE.Group; sprout: THREE.Mesh; vine: THREE.Mesh; pumpkin: THREE.Mesh; pmat: THREE.MeshLambertMaterial;
+  pos: THREE.Vector3; root: THREE.Group; sprout: THREE.Mesh; vine: THREE.Mesh; pumpkin: THREE.Object3D; pmat: { color: THREE.Color };
   state: 'empty' | 'growing' | 'ripe'; t: number; size: number; res: unknown; cool: number;
 };
-type Tree = { root: THREE.Group; pos: THREE.Vector3; apples: (THREE.Mesh | null)[]; spots: THREE.Vector3[]; regrow: number; shakeT: number; wob: number };
+type Tree = { root: THREE.Group; pos: THREE.Vector3; apples: (THREE.Object3D | null)[]; spots: THREE.Vector3[]; regrow: number; shakeT: number; wob: number };
 type Shop = {
   id: 'stand' | 'cider' | 'pie'; kind: ItemKind; price: number; built: boolean; name: string;
   slots: (THREE.Object3D | null)[]; slotPos: THREE.Vector3[]; drop: THREE.Vector3; spots: THREE.Vector3[]; spotUsed: (Visitor | null)[];
@@ -121,18 +123,20 @@ type Machine = {
 type Act = 'stand' | 'upick' | 'cider' | 'hayride' | 'maze' | 'pie';
 type Car = { mesh: THREE.Group; slot: number; state: 'in' | 'park' | 'out'; path: THREE.Vector3[]; members: Visitor[]; back: number; speed: number };
 type Visitor = {
-  p: M.Person; car: Car; plan: Act[]; act: Act | null; kid: boolean;
+  p: Char; car: Car; plan: Act[]; act: Act | null; kid: boolean;
   path: THREE.Vector3[]; speed: number; onArrive: (() => void) | null;
   waitFn: ((dt: number) => boolean) | null; patience: number;
   items: THREE.Object3D[]; bubble: Label | null; shop: Shop | null; spot: number; plot: Plot | null; seat: number;
   state: 'walk' | 'wait' | 'ride' | 'gone';
 };
-type Worker = { p: M.Person; role: 'field' | 'orchard'; hand: Stack; state: 'idle' | 'go' | 'act'; target: THREE.Vector3 | null; job: (() => void) | null; t: number; plot: Plot | null; tree: Tree | null; idleSpot: THREE.Vector3 };
+type Worker = { p: Char; role: 'field' | 'orchard'; hand: Stack; state: 'idle' | 'go' | 'act'; target: THREE.Vector3 | null; job: (() => void) | null; t: number; plot: Plot | null; tree: Tree | null; idleSpot: THREE.Vector3 };
+type Wild = { id: string; rect: Rect; insts: THREE.InstancedMesh[]; pts: { x: number; z: number; sc: number; r: number }[]; cleared: boolean; collider: Rect | null };
 type PadDef = { id: string; name: string; pad: Pad; shown: boolean; done: boolean; when: () => boolean; onBuy: () => void; needExit: boolean; upgrade?: 'basket' | 'boots' | 'grow' };
 
 export type HudEls = {
   money: HTMLElement; moneyBox: HTMLElement; levelNum: HTMLElement; levelFill: HTMLElement; levelText: HTMLElement; levelStar: HTMLElement;
   objective: HTMLElement; objectiveText: HTMLElement; banner: HTMLElement; stage: HTMLElement;
+  objIcon: HTMLElement; objBar: HTMLElement; objFill: HTMLElement; objCount: HTMLElement;
 };
 
 export class Game {
@@ -141,7 +145,7 @@ export class Game {
   shownMoney = CFG.startMoney;
   input = new THREE.Vector2();
 
-  player!: M.Person;
+  player!: Char;
   playerVel = new THREE.Vector3();
   speed = CFG.player.speed[0];
   hand!: Stack;
@@ -172,12 +176,13 @@ export class Game {
 
   hay = {
     built: false, tractor: null as THREE.Group | null, wagon: null as THREE.Group | null, state: 'idle' as 'idle' | 'ride', s: L.hayStop,
-    seats: [] as (Visitor | null)[], seated: 0, waitT: 0, driver: null as M.Person | null, segs: [] as number[], total: 0, rides: 0, goPlate: null as THREE.Mesh | null, goLabel: null as Label | null,
+    seats: [] as (Visitor | null)[], seated: 0, waitT: 0, driver: null as Char | null, segs: [] as number[], total: 0, rides: 0, goPlate: null as THREE.Mesh | null, goLabel: null as Label | null,
   };
   maze = { built: false, cells: [] as { e: boolean; s: boolean }[], inst: null as THREE.InstancedMesh | null, path: [] as THREE.Vector3[] };
   giant: THREE.Group | null = null;
 
   workers: Worker[] = [];
+  wilds: Wild[] = [];
   pads: PadDef[] = [];
   colliders: Rect[] = [];
 
@@ -196,7 +201,7 @@ export class Game {
     const s = this.scene;
     this.buildGround();
     // player: farmer with straw hat
-    this.player = M.makePerson(0xe8533f, { pants: 0x3d6fb6 });
+    this.player = makeChar('farmer', 1.9);
     const hat = F.build([
       { geo: new THREE.CylinderGeometry(0.42, 0.42, 0.04, 14), color: 0xe9c25b, pos: [0, 1.36, 0] },
       { geo: new THREE.CylinderGeometry(0.2, 0.25, 0.2, 12), color: 0xe9c25b, pos: [0, 1.46, 0] },
@@ -204,13 +209,14 @@ export class Game {
     ]);
     const hatM = new THREE.Mesh(hat, F.vcMat);
     hatM.castShadow = true;
-    this.player.userData.body.add(hatM);
+    if (!this.player.userData.mixer) this.player.userData.body.add(hatM);
     this.player.position.copy(L.playerStart);
     this.player.rotation.y = Math.PI;
     s.add(this.player);
-    const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.45, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0.18, depthWrite: false }));
-    shadow.position.y = 0.04;
-    this.player.add(shadow);
+    // white ring under the player (reference style)
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
+    ring.position.y = 0.05;
+    this.player.add(ring);
     this.hand = new Stack(this.player.userData.carryAnchor, s, CFG.player.basket[0], true);
     this.handLabel = this.ui.add('timer-bar bag-bar', '<div></div><span></span>', this.player, 2.3);
     this.ui.show(this.handLabel, false);
@@ -251,6 +257,7 @@ export class Game {
 
     this.slotsUsed = new Array(L.parkSlots.length).fill(null);
     this.decorate();
+    this.buildWilds();
     this.definePads();
 
     // guidance arrow + marker
@@ -270,7 +277,7 @@ export class Game {
   buildGround() {
     const s = this.scene;
     // big grass ground
-    const g = new THREE.Mesh(new THREE.BoxGeometry(140, 1, 140), M.mat(0x8fd05a));
+    const g = new THREE.Mesh(new THREE.BoxGeometry(140, 1, 140), M.mat(0x9fe050));
     g.position.set(0, -0.5, -4);
     g.receiveShadow = true;
     s.add(g);
@@ -284,7 +291,7 @@ export class Game {
       if (((x + z) / 2) % 2 === 0 || n >= 400) continue;
       m.makeTranslation(x + 1, 0.005, z + 1);
       tiles.setMatrixAt(n, m);
-      tiles.setColorAt(n, new THREE.Color(0x84c652));
+      tiles.setColorAt(n, new THREE.Color(0x95d84a));
       n++;
     }
     tiles.count = n;
@@ -341,16 +348,12 @@ export class Game {
     const barn = F.makeBarn();
     barn.position.copy(L.barn);
     s.add(barn);
-    this.colliders.push(rectAt(L.barn.x, L.barn.z, 3.9, 3.1), rectAt(L.barn.x + 2.7, L.barn.z - 0.6, 1.6, 1.6));
-    const house = F.makeFarmhouse();
-    house.position.copy(L.farmhouse);
-    house.rotation.y = Math.PI / 2;
-    s.add(house);
-    this.colliders.push(rectAt(L.farmhouse.x, L.farmhouse.z, 2.5, 3.3));
+    this.colliders.push(rectAt(L.barn.x, L.barn.z, 4.0, 4.3), rectAt(L.barn.x + 2.9, L.barn.z - 0.6, 2.1, 2.1));
+    this.bed(L.patchA);
     const scare = F.makeScarecrow();
-    scare.position.set(-7.4, 0, 6.3);
+    scare.position.set(-7.8, 0, 2.2);
     s.add(scare);
-    for (const [x, z, r] of [[-8.8, 11.4, 0], [-14.6, 11.2, 0.4], [14.6, 11.0, 0.2], [4.6, 11.5, 0], [-0.9, 7.6, 0.5], [13.8, -3.4, 0.2]] as [number, number, number][]) {
+    for (const [x, z, r] of [[-8.8, 11.4, 0], [-14.6, 11.2, 0.4], [4.6, 11.5, 0], [-7.6, 0.4, 0.5]] as [number, number, number][]) {
       const h = F.makeHay();
       h.position.set(x, 0, z);
       h.rotation.y = r;
@@ -376,11 +379,6 @@ export class Game {
       h.rotation.y = r;
       s.add(h);
     }
-    for (let i = 0; i < 14; i++) {
-      const sf = F.makeSunflower();
-      sf.position.set(-14.6 + i * 0.9, 0, -19.6 + (i % 2) * 0.25);
-      s.add(sf);
-    }
     for (const [x, z] of [[2.9, -9.4], [3.3, -9.0], [13.2, -6.2], [14.4, -6.8], [12.8, -16.8], [-15.2, -19.2], [4.2, -19.4], [14.6, 3.2], [-8.4, -1.7], [-3.4, -1.8]] as [number, number][]) {
       const p = F.makePumpkin();
       p.position.set(x, 0, z);
@@ -392,18 +390,171 @@ export class Game {
     scare2.position.set(12.2, 0, -3.6);
     scare2.rotation.y = -0.5;
     s.add(scare2);
-    // fall trees outside the fence
+    this.forest();
+    // a few bushes along the fence
+    for (const [x, z, k] of [[-15.0, 11.6, 'bush'], [-6.6, 11.8, 'bush_berries'], [6.8, 11.8, 'bush'], [15.0, 9.0, 'bush_berries'], [-15.0, -6.0, 'bush'], [15.1, -12.0, 'bush'], [-15.0, -14.0, 'bush_berries'], [9.8, -19.8, 'bush']] as [number, number, string][]) {
+      if (!A.has(k)) continue;
+      const b = A.model(k, { height: 0.9 });
+      b.position.set(x, 0, z);
+      b.rotation.y = rand(0, 6);
+      s.add(b);
+    }
+  }
+
+  /** Dense pine forest around the farm (instanced), with a few autumn trees mixed in. */
+  forest() {
+    const s = this.scene;
+    const pts: { x: number; z: number; sc: number; r: number }[] = [];
+    const inPlay = (x: number, z: number) => Math.abs(x) < 17.2 && z > -22.2 && z < 20.0;
+    const nearRoad = (z: number) => z > 15.6 && z < 19.8;
+    for (let x = -26; x <= 26; x += 2.0) for (let z = -30; z <= 27; z += 2.0) {
+      const jx = x + rand(-0.7, 0.7), jz = z + rand(-0.7, 0.7);
+      if (inPlay(jx, jz) || nearRoad(jz)) continue;
+      if (Math.abs(jx) > 24 && Math.random() < 0.5) continue;
+      pts.push({ x: jx, z: jz, sc: rand(0.8, 1.25), r: rand(0, 6.28) });
+    }
+    if (A.has('pine')) {
+      const parts = A.flatGeometry('pine', 3.8);
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion();
+      for (const part of parts) {
+        const inst = new THREE.InstancedMesh(part.geo, part.mat, pts.length);
+        pts.forEach((p, i) => {
+          m.compose(V(p.x, 0, p.z), q.setFromAxisAngle(V(0, 1, 0), p.r), V(p.sc, p.sc * rand(0.95, 1.1), p.sc));
+          inst.setMatrixAt(i, m);
+        });
+        inst.receiveShadow = true;
+        s.add(inst);
+      }
+    }
+    // autumn colour accents just outside the fence
     let k = 0;
-    for (const [x, z, sc] of [[-17.5, 8, 1.3], [-17.8, -2, 1.5], [-17.6, -12, 1.4], [17.5, 6, 1.4], [17.8, -5, 1.3], [17.4, -15, 1.5], [-9, 20.5, 1.4], [6, 21, 1.5], [14, 20.5, 1.3], [-17, -20, 1.4], [16.5, -21, 1.3], [-4, -22.5, 1.5], [4, -23, 1.3]] as [number, number, number][]) {
+    for (const [x, z, sc] of [[-17.8, 8, 1.3], [-18, -4, 1.5], [-17.9, -14, 1.4], [17.8, 4, 1.4], [18, -8, 1.3], [17.8, -17, 1.5], [-8, 20.6, 1.4], [6, 20.8, 1.5], [-3, -23, 1.4], [5, -23.2, 1.3]] as [number, number, number][]) {
       const t = F.makeFallTree(sc, F.FALL_COLORS[k++ % F.FALL_COLORS.length]);
       t.position.set(x, 0, z);
       s.add(t);
     }
-    for (const [x, z] of [[-19.5, 3], [19.5, 0], [19.2, -10], [-19.3, -7], [-20, 13], [20, 14]] as [number, number][]) {
-      const p = F.makePine(1.4);
-      p.position.set(x, 0, z);
-      s.add(p);
+  }
+
+  // ---------------- Wild (locked) areas ----------------
+
+  private geoCache = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.Material }[]>();
+  wildParts(kind: 'pine' | 'bush' | 'grass') {
+    let parts = this.geoCache.get(kind);
+    if (parts) return parts;
+    if (kind === 'pine' && A.has('pine')) parts = A.flatGeometry('pine', 3.2);
+    else if (kind === 'bush' && A.has('bush')) parts = A.flatGeometry('bush', 0.95);
+    else {
+      const tuft = F.build([
+        { geo: new THREE.ConeGeometry(0.13, 0.95, 4), color: 0x6fbf3a, pos: [0, 0.47, 0], rot: [0.15, 0, 0.1] },
+        { geo: new THREE.ConeGeometry(0.12, 0.85, 4), color: 0x86d14a, pos: [0.18, 0.42, 0.05], rot: [-0.1, 0, -0.35] },
+        { geo: new THREE.ConeGeometry(0.12, 0.8, 4), color: 0x5aa832, pos: [-0.18, 0.4, -0.04], rot: [0.1, 0, 0.4] },
+        { geo: new THREE.ConeGeometry(0.11, 0.75, 4), color: 0xa6d95a, pos: [0.03, 0.37, -0.18], rot: [-0.4, 0, 0] },
+        { geo: new THREE.ConeGeometry(0.11, 0.7, 4), color: 0x7cc943, pos: [0.02, 0.35, 0.2], rot: [0.4, 0, 0.1] },
+      ]);
+      parts = [{ geo: tuft, mat: F.vcMat }];
     }
+    this.geoCache.set(kind, parts);
+    return parts;
+  }
+
+  makeWild(id: string, rect: Rect, kinds: { kind: 'pine' | 'bush' | 'grass'; step: number }[], blocks: boolean, keepOut: THREE.Vector3[] = []) {
+    const w: Wild = { id, rect, insts: [], pts: [], cleared: false, collider: null };
+    for (const k of kinds) {
+      const pts: Wild['pts'] = [];
+      for (let x = rect.minX + k.step / 2; x < rect.maxX; x += k.step) for (let z = rect.minZ + k.step / 2; z < rect.maxZ; z += k.step) {
+        const jx = clamp(x + rand(-k.step * 0.35, k.step * 0.35), rect.minX + 0.2, rect.maxX - 0.2);
+        const jz = clamp(z + rand(-k.step * 0.35, k.step * 0.35), rect.minZ + 0.2, rect.maxZ - 0.2);
+        if (keepOut.some((p) => Math.hypot(p.x - jx, p.z - jz) < 1.7)) continue;
+        pts.push({ x: jx, z: jz, sc: rand(0.75, 1.2), r: rand(0, 6.28) });
+      }
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion();
+      for (const part of this.wildParts(k.kind)) {
+        const inst = new THREE.InstancedMesh(part.geo, part.mat, pts.length);
+        pts.forEach((p, i) => {
+          m.compose(V(p.x, 0, p.z), q.setFromAxisAngle(V(0, 1, 0), p.r), V(p.sc, p.sc, p.sc));
+          inst.setMatrixAt(i, m);
+        });
+        inst.castShadow = k.kind !== 'grass';
+        inst.receiveShadow = true;
+        inst.userData.pts = pts;
+        this.scene.add(inst);
+        w.insts.push(inst);
+      }
+      w.pts.push(...pts);
+    }
+    if (blocks) {
+      w.collider = { ...rect };
+      this.colliders.push(w.collider);
+    }
+    this.wilds.push(w);
+    return w;
+  }
+
+  /** Trees and bushes pop away in a wave from the pad, then the area is free. */
+  clearWild(id: string, origin: THREE.Vector3) {
+    const w = this.wilds.find((x) => x.id === id);
+    if (!w || w.cleared) return;
+    w.cleared = true;
+    if (w.collider) this.colliders.splice(this.colliders.indexOf(w.collider), 1);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    let maxDelay = 0;
+    for (const inst of w.insts) {
+      const pts = inst.userData.pts as Wild['pts'];
+      pts.forEach((p, i) => {
+        const d = Math.hypot(p.x - origin.x, p.z - origin.z);
+        const delay = d * 0.05;
+        maxDelay = Math.max(maxDelay, delay);
+        tweens.add(0.3, (k) => {
+          const s = p.sc * (k < 0.3 ? 1 + k * 0.6 : Math.max(0.001, 1.18 * (1 - (k - 0.3) / 0.7)));
+          m.compose(V(p.x, 0, p.z), q.setFromAxisAngle(V(0, 1, 0), p.r + k * 2), V(s, s, s));
+          inst.setMatrixAt(i, m);
+          inst.instanceMatrix.needsUpdate = true;
+        }, { delay, easing: ease.inQuad, done: () => { if (inst === w.insts[0] && i % 3 === 0) this.fx.puff(V(p.x, 0.6, p.z), 3, 0xb8e07a, 0.35, 0.9); } });
+      });
+    }
+    tweens.add(0.01, () => {}, { delay: maxDelay + 0.35, done: () => { for (const inst of w.insts) { inst.removeFromParent(); inst.dispose(); } } });
+    sfx.rustle();
+    this.shake.add(0.15);
+  }
+
+  buildWilds() {
+    // tall grass where the second patch goes
+    this.makeWild('patchB', { minX: -7.2, maxX: -2.0, minZ: 0.95, maxZ: 4.0 }, [{ kind: 'grass', step: 0.42 }], false, [V(-4.6, 0, 2.5)]);
+    // orchard + cider corner: pines and bushes
+    this.makeWild('orchard', { minX: 6.2, maxX: 15.4, minZ: 0.1, maxZ: 6.2 }, [{ kind: 'pine', step: 2.1 }, { kind: 'bush', step: 1.6 }], true);
+    this.makeWild('cider', { minX: 9.6, maxX: 15.4, minZ: 6.2, maxZ: 11.6 }, [{ kind: 'bush', step: 1.3 }, { kind: 'grass', step: 0.8 }], true);
+    // north field: maze, bakery, fair stage
+    this.makeWild('maze', { minX: -13.4, maxX: -2.3, minZ: -15.8, maxZ: -4.7 }, [{ kind: 'pine', step: 2.2 }, { kind: 'grass', step: 1.0 }], true);
+    this.makeWild('bakery', { minX: 4.6, maxX: 15.4, minZ: -11.8, maxZ: -8.6 }, [{ kind: 'pine', step: 2.0 }, { kind: 'bush', step: 1.7 }], true);
+    this.makeWild('stage', { minX: 4.4, maxX: 11.0, minZ: -20.4, maxZ: -16.6 }, [{ kind: 'pine', step: 2.0 }], true);
+    // permanent woods filling empty corners (never cleared)
+    this.makeWild('woodsEast', { minX: 5.0, maxX: 15.4, minZ: -4.4, maxZ: -0.4 }, [{ kind: 'pine', step: 2.2 }, { kind: 'bush', step: 2.0 }], true);
+    this.makeWild('woodsNE', { minX: 11.4, maxX: 15.4, minZ: -20.4, maxZ: -12.0 }, [{ kind: 'pine', step: 2.0 }], true);
+    this.makeWild('woodsMid', { minX: -12.8, maxX: -1.4, minZ: -20.4, maxZ: -18.0 }, [{ kind: 'pine', step: 2.3 }], true);
+  }
+
+  /** Big tilled soil bed under a group of plots (reference style: one large field). */
+  bed(rows: number[]) {
+    const minX = Math.min(...L.patchCols) - 0.62, maxX = Math.max(...L.patchCols) + 0.62;
+    const minZ = Math.min(...rows) - 0.62, maxZ = Math.max(...rows) + 0.62;
+    const w = maxX - minX, d = maxZ - minZ;
+    const shape = new THREE.Shape();
+    const r = 0.35, x0 = -w / 2, z0 = -d / 2;
+    shape.moveTo(x0 + r, z0);
+    shape.lineTo(x0 + w - r, z0); shape.quadraticCurveTo(x0 + w, z0, x0 + w, z0 + r);
+    shape.lineTo(x0 + w, z0 + d - r); shape.quadraticCurveTo(x0 + w, z0 + d, x0 + w - r, z0 + d);
+    shape.lineTo(x0 + r, z0 + d); shape.quadraticCurveTo(x0, z0 + d, x0, z0 + d - r);
+    shape.lineTo(x0, z0 + r); shape.quadraticCurveTo(x0, z0, x0 + r, z0);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.08, bevelSegments: 2 });
+    geo.rotateX(Math.PI / 2);
+    const m = new THREE.Mesh(geo, M.mat(0x8a5634));
+    m.position.set((minX + maxX) / 2, 0.1, (minZ + maxZ) / 2);
+    m.receiveShadow = true;
+    this.scene.add(m);
+    return m;
   }
 
   addDropPlate(pos: THREE.Vector3, icon: string) {
@@ -419,6 +570,8 @@ export class Game {
     root.position.copy(pos);
     const soil = new THREE.Mesh(F.soilGeo, F.vcMat);
     soil.receiveShadow = true;
+    soil.scale.set(0.86, 0.6, 0.86);
+    soil.position.y = 0.06;
     root.add(soil);
     const sprout = new THREE.Mesh(F.sproutGeo, F.vcMat);
     sprout.visible = false;
@@ -427,10 +580,10 @@ export class Game {
     vine.visible = false;
     vine.castShadow = true;
     root.add(vine);
-    const pmat = new THREE.MeshLambertMaterial({ vertexColors: true, color: F.PUMPKIN_GREEN });
-    const pumpkin = new THREE.Mesh(F.pumpkinGeo, pmat);
-    pumpkin.castShadow = true;
-    pumpkin.position.y = 0.12;
+    const gp = F.makeGrowingPumpkin();
+    const pumpkin = gp.obj;
+    const pmat = { color: gp.color };
+    pumpkin.position.y = 0.1;
     pumpkin.visible = false;
     root.add(pumpkin);
     this.scene.add(root);
@@ -471,16 +624,16 @@ export class Game {
       return d;
     };
     const done = (id: string) => this.pads.find((p) => p.id === id)?.done ?? false;
-    add('patchB', 'More Pumpkins', '🎃', V(-4.5, 0, 2.6), UNLOCK.patchB, () => this.stats.sold >= 2, () => this.buildPatchB());
+    add('patchB', 'More Pumpkins', '🎃', V(-4.6, 0, 2.5), UNLOCK.patchB, () => this.stats.sold >= 2, () => { this.clearWild('patchB', V(-4.6, 0, 2.5)); this.buildPatchB(); });
     add('upick', 'U-Pick Patch', '🧺', V(-5.6, 0, 9.85), UNLOCK.upick, () => done('patchB') && this.stats.sold >= 6, () => this.buildUpick());
-    add('orchard', 'Orchard & Cider', '🍎', V(9.8, 0, 3.0), UNLOCK.orchard, () => done('upick') && this.stats.upick >= 1, () => { this.buildOrchard(); this.buildCider(); });
-    add('farmhand1', 'Farmhand', '👩‍🌾', V(-13.2, 0, 5.5), UNLOCK.farmhand1, () => done('orchard') && this.stats.apples >= 4, () => this.hireWorker('field'));
+    add('orchard', 'Orchard & Cider', '🍎', V(5.0, 0, 3.4), UNLOCK.orchard, () => done('upick') && this.stats.upick >= 1, () => { this.clearWild('orchard', V(5.0, 0, 3.4)); this.clearWild('cider', V(5.0, 0, 3.4)); this.buildOrchard(); this.buildCider(); });
+    add('farmhand1', 'Farmhand', '👩‍🌾', V(-13.2, 0, 3.4), UNLOCK.farmhand1, () => done('orchard') && this.stats.apples >= 4, () => this.hireWorker('field'));
     add('hayride', 'Hayride', '🚜', V(1.6, 0, -2.6), UNLOCK.hayride, () => done('orchard') && this.stats.apples >= 4, () => this.buildHayride());
     add('driver', 'Tractor Driver', '🧑‍🌾', V(3.8, 0, 1.4), UNLOCK.driver, () => done('hayride') && this.stats.rides >= 2, () => this.hireDriver());
-    add('maze', 'Corn Maze', '🌽', V(-7.8, 0, -3.0), UNLOCK.maze, () => done('hayride') && this.stats.rides >= 1, () => this.buildMaze());
-    add('bakery', 'Pie Shop', '🥧', V(7.4, 0, -7.4), UNLOCK.bakery, () => done('maze'), () => this.buildBakery());
-    add('farmhand2', 'Orchard Hand', '🍏', V(-10.9, 0, 5.5), UNLOCK.farmhand2, () => done('bakery'), () => this.hireWorker('orchard'));
-    add('giant', 'Giant Pumpkin', '🏆', V(7.5, 0, -15.6), UNLOCK.giant, () => done('bakery') && this.stats.pies >= 2, () => this.growGiant());
+    add('maze', 'Corn Maze', '🌽', V(-7.8, 0, -3.0), UNLOCK.maze, () => done('hayride') && this.stats.rides >= 1, () => { this.clearWild('maze', V(-7.8, 0, -3.0)); this.buildMaze(); });
+    add('bakery', 'Pie Shop', '🥧', V(7.4, 0, -7.4), UNLOCK.bakery, () => done('maze'), () => { this.clearWild('bakery', V(7.4, 0, -7.4)); this.buildBakery(); });
+    add('farmhand2', 'Orchard Hand', '🍏', V(-10.9, 0, 3.4), UNLOCK.farmhand2, () => done('bakery'), () => this.hireWorker('orchard'));
+    add('giant', 'Giant Pumpkin', '🏆', V(7.5, 0, -15.6), UNLOCK.giant, () => done('bakery') && this.stats.pies >= 2, () => { this.clearWild('stage', V(7.5, 0, -15.6)); this.growGiant(); });
     // upgrades at the barn
     add('basket', 'Bigger Basket', '🧺', V(-13.0, 0, 10.95), CFG.player.basketPrice[0], () => done('patchB'), () => {}, 'basket');
     add('grow', 'Fertilizer', '🌱', V(-10.8, 0, 10.95), CFG.grow.timePrice[0], () => done('upick'), () => {}, 'grow');
@@ -582,6 +735,7 @@ export class Game {
 
   buildPatchB() {
     let i = 0;
+    popIn(this.bed(L.patchB), 0.4);
     for (const z of L.patchB) for (const x of L.patchCols) this.addPlot(V(x, 0, z), true, 0.05 * i++);
     this.fx.puff(V(-4.5, 0.3, 2.6), 20, 0x9a6a3a, 0.5, 2);
     this.showBanner('MORE PUMPKINS!', 'Plant the new patch');
@@ -697,7 +851,8 @@ export class Game {
   }
 
   hireDriver() {
-    const d = M.makePerson(0x3d6fb6, { cap: 0xd32f2f, pants: 0x5b3a2e });
+    const d = makeChar('worker', 1.5);
+    d.userData.seated = true;
     this.hay.tractor!.userData.driverSeat.add(d);
     d.position.set(0, -0.3, 0);
     d.userData.legL.rotation.x = -1.4;
@@ -848,7 +1003,7 @@ export class Game {
   }
 
   hireWorker(role: Worker['role']) {
-    const p = M.makePerson(role === 'field' ? 0x2fb344 : 0x8e44ad, { cap: role === 'field' ? 0xe9c25b : 0xc0392b, pants: 0x3d6fb6 });
+    const p = makeChar(role === 'field' ? 'worker' : 'adventurer', 1.6);
     const idle = role === 'field' ? V(-8.4, 0, 3.0) : V(8.5, 0, 6.2);
     const padPos = this.pads.find((d) => d.id === (role === 'field' ? 'farmhand1' : 'farmhand2'))!.pad.pos;
     p.position.copy(padPos);
@@ -910,7 +1065,7 @@ export class Game {
     const sp = Math.hypot(this.playerVel.x, this.playerVel.z);
     this.moveResolve(p, p.position.x + this.playerVel.x * dt, p.position.z + this.playerVel.z * dt);
     if (sp > 0.3) p.rotation.y = angleDamp(p.rotation.y, Math.atan2(this.playerVel.x, this.playerVel.z), 14, dt);
-    M.animatePerson(p, this.time, Math.min(1, sp / 4), this.hand.count > 0);
+    animateChar(p, this.time, Math.min(1, sp / 4), this.hand.count > 0, sp > 3.2);
     this.hand.update(dt, sp);
     if (sp > 3 && Math.random() < dt * 5) this.fx.puff(p.position.clone().setY(0.1), 1, 0xe8cf9a, 0.12, 0.3);
 
@@ -1219,6 +1374,7 @@ export class Game {
       this.placeHay(h.s, dt);
       sfx.setEngine(1);
       if (Math.random() < dt * 6) this.fx.smoke(h.tractor.localToWorld(h.tractor.userData.exhaust.clone()), 0x9aa0a6);
+      if (h.driver) animateChar(h.driver as Char, this.time, 0, false);
       const body = h.tractor.userData.body as THREE.Object3D;
       body.position.y = Math.abs(Math.sin(this.time * 18)) * 0.04;
       if (h.s >= L.hayStop + h.total) {
@@ -1298,7 +1454,7 @@ export class Game {
   spawnCar(slot: number) {
     const type = pick(['sedan', 'pickup', 'sedan', 'rv'] as M.VehicleType[]);
     const color = pick([0xff5a5f, 0x4dabf7, 0x3ccf5a, 0xffd23f, 0xb57bff, 0xff9f43, 0x2f4a73]);
-    const mesh = M.makeVehicle(type, color);
+    const mesh = F.makeCar(color) ?? M.makeVehicle(type, color);
     const sx = L.parkSlots[slot];
     mesh.position.set(-34, 0, L.roadZ + 0.6);
     mesh.rotation.y = Math.PI / 2;
@@ -1314,13 +1470,10 @@ export class Game {
     const acts = this.attractions();
     for (let i = 0; i < n; i++) {
       const kid = i > 0 && Math.random() < 0.5;
-      const p = M.makePerson(pick([0xff7a59, 0x4dabf7, 0x9b59b6, 0x2fb344, 0xffd23f, 0xe84393, 0x00b894, 0xfd9644]), {
-        pants: pick([0x2f4a73, 0x3a4a6b, 0x6b4f3a, 0x444444]), skin: pick([0xffd1a8, 0xf1c27d, 0xc68642, 0x8d5524]), scale: kid ? 0.72 : 1,
-        cap: Math.random() < 0.3 ? pick([0xff5a5f, 0x2f4a73, 0xffd23f]) : undefined,
-      });
+      const p = makeChar(pick(['char', 'char', 'worker', 'adventurer']), kid ? 1.2 : rand(1.6, 1.8));
       p.position.copy(c.mesh.position).add(V(-1.0 + i * 0.35, 0, rand(-0.4, 0.4)));
       this.scene.add(p);
-      popIn(p, 0.3, i * 0.15, kid ? 0.72 : 1);
+      popIn(p, 0.3, i * 0.15, 1);
       const plan = this.makePlan(acts);
       const v: Visitor = {
         p, car: c, plan, act: null, kid, path: [], speed: CFG.visitors.walk * rand(0.9, 1.1) * (kid ? 1.1 : 1), onArrive: null, waitFn: null, patience: 0,
@@ -1596,7 +1749,7 @@ export class Game {
     for (const v of [...this.visitors]) {
       if (v.state === 'ride' || v.state === 'gone') {
         if (v.state === 'ride') {
-          M.animatePerson(v.p, this.time, 0, v.items.length > 0);
+          animateChar(v.p, this.time, 0, v.items.length > 0);
           v.p.userData.legL.rotation.x = -1.4;
           v.p.userData.legR.rotation.x = -1.4;
         }
@@ -1606,7 +1759,7 @@ export class Game {
         const t = v.path[0];
         if (t) {
           if (stepTowards(v.p, t, v.speed, dt, 10)) v.path.shift();
-          M.animatePerson(v.p, this.time + v.p.id, 1, v.items.length > 0);
+          animateChar(v.p, this.time, 1, v.items.length > 0);
         } else {
           const f = v.onArrive;
           v.onArrive = null;
@@ -1614,7 +1767,7 @@ export class Game {
           else if (v.state === 'walk') this.nextActivity(v);
         }
       } else if (v.state === 'wait') {
-        M.animatePerson(v.p, this.time, 0, v.items.length > 0);
+        animateChar(v.p, this.time, 0, v.items.length > 0);
         v.patience -= dt;
         const fn = v.waitFn;
         if (fn && fn(dt)) { if (v.waitFn === fn) v.waitFn = null; continue; }
@@ -1636,11 +1789,11 @@ export class Game {
       w.hand.update(dt, w.state === 'go' ? 3 : 0);
       if (w.state === 'go' && w.target) {
         const arrived = stepTowards(w.p, w.target, CFG.workers.speed, dt, 10);
-        M.animatePerson(w.p, this.time, 1, w.hand.count > 0);
+        animateChar(w.p, this.time, 1, w.hand.count > 0);
         if (arrived) { w.state = 'act'; w.t = 0; }
         continue;
       }
-      M.animatePerson(w.p, this.time, 0, w.hand.count > 0);
+      animateChar(w.p, this.time, 0, w.hand.count > 0);
       if (w.state === 'act') {
         w.t -= dt;
         if (w.t > 0) continue;
@@ -1776,7 +1929,7 @@ export class Game {
 
   updateObjective(dt: number) {
     let text = '';
-    let target: THREE.Vector3 | null = null;
+    let target = null as THREE.Vector3 | null;
     const pp = this.player.position;
     const nearest = (list: Plot[]) => list.sort((a, b) => flatDist(a.pos, pp) - flatDist(b.pos, pp))[0];
     const empty = this.plots.filter((p) => p.state === 'empty');
@@ -1786,59 +1939,65 @@ export class Game {
     const richPile = this.cashPiles.filter((c) => c.value >= 12).sort((a, b) => b.value - a.value)[0];
     const standFree = this.stand.slots.some((s) => !s);
 
+    // quest card: icon + short text + optional progress
+    let icon = '📍';
+    let cur = -1, max = 0;
+    const q = (i: string, t: string, tg: THREE.Vector3 | null, c = -1, m = 0) => { icon = i; text = t; target = tg; cur = c; max = m; };
     if (this.stats.planted < 6 && empty.length) {
-      text = 'Walk on the soil to plant seeds 🌱';
-      target = nearest(empty).pos;
+      q('🌱', 'Plant seeds', nearest(empty).pos, this.stats.planted, 6);
     } else if (this.stats.harvested === 0) {
-      if (ripe.length) { text = 'Walk over ripe pumpkins to pick them 🎃'; target = nearest(ripe).pos; }
-      else { text = 'Pumpkins are growing…'; target = empty.length ? nearest(empty).pos : null; }
+      if (ripe.length) q('🎃', 'Pick ripe pumpkins', nearest(ripe).pos, 0, 6);
+      else q('⏳', 'Pumpkins are growing…', empty.length ? nearest(empty).pos : null);
+    } else if (this.stats.harvested < 6 && !this.hand.full && ripe.length && this.stats.stocked === 0) {
+      q('🎃', 'Pick ripe pumpkins', nearest(ripe).pos, this.stats.harvested, 6);
     } else if (this.hand.has('pumpkin') && standFree && this.stats.stocked < 6) {
-      text = 'Put pumpkins on the farm stand';
-      target = this.stand.drop;
+      q('🏪', 'Stock the farm stand', this.stand.drop, this.stats.stocked, 6);
     } else if (richPile && this.stats.collected < 2) {
-      text = 'Collect your coins 💰';
-      target = richPile.origin;
+      q('💰', 'Collect your coins', richPile.origin);
     } else if (affordable.length) {
-      text = affordable[0].upgrade ? `Upgrade: ${affordable[0].pad.title}` : `Unlock: ${affordable[0].name}`;
-      target = affordable[0].pad.pos;
+      const a = affordable[0];
+      q(a.pad.icon || '⭐', a.upgrade ? `Upgrade ${a.pad.title}` : `Unlock ${a.name}`, a.pad.pos);
     } else if (this.hand.has('cider') && this.cider.slots.some((s) => !s)) {
-      text = 'Stock the cider stand 🧃'; target = this.cider.drop;
+      q('🧃', 'Stock the cider stand', this.cider.drop);
     } else if (this.hand.has('pie') && this.bakery.slots.some((s) => !s)) {
-      text = 'Stock the pie counter 🥧'; target = this.bakery.drop;
+      q('🥧', 'Stock the pie counter', this.bakery.drop);
     } else if (this.hand.has('apple') && this.press.built && this.press.inCount < this.press.inMax) {
-      text = 'Press apples into cider 🍎'; target = this.press.inZone;
+      q('🍎', 'Press apples into cider', this.press.inZone);
     } else if (this.press.out.length >= 3 && !this.hand.full) {
-      text = 'Pick up fresh cider'; target = this.press.outZone;
+      q('🧃', 'Pick up fresh cider', this.press.outZone);
     } else if (this.oven.out.length >= 2 && !this.hand.full) {
-      text = 'Pick up fresh pies'; target = this.oven.outZone;
+      q('🥧', 'Pick up fresh pies', this.oven.outZone);
     } else if (this.hand.has('pumpkin') && standFree) {
-      text = 'Put pumpkins on the farm stand'; target = this.stand.drop;
+      q('🏪', 'Stock the farm stand', this.stand.drop);
     } else if (this.hand.has('pumpkin') && this.oven.built && this.oven.inCount < this.oven.inMax) {
-      text = 'Bake pies: bring pumpkins to the oven'; target = this.oven.inZone;
+      q('🔥', 'Bake pies at the oven', this.oven.inZone);
     } else if (this.hay.built && !this.hay.driver && this.hay.state === 'idle' && this.hay.seats.some((v) => v && v.state === 'ride')) {
-      text = 'Start the hayride! 🚜'; target = L.hayGo;
+      q('🚜', 'Start the hayride!', L.hayGo);
     } else if (richPile) {
-      text = 'Collect your coins 💰'; target = richPile.origin;
+      q('💰', 'Collect your coins', richPile.origin);
     } else if (empty.length >= 4) {
-      text = 'Plant more pumpkins 🌱'; target = nearest(empty).pos;
+      q('🌱', 'Plant more pumpkins', nearest(empty).pos);
     } else if (ripe.length && !this.hand.full && standFree) {
-      text = 'Pick ripe pumpkins 🎃'; target = nearest(ripe).pos;
+      q('🎃', 'Pick ripe pumpkins', nearest(ripe).pos);
     } else if (visible.length) {
       const v = visible.sort((a, b) => a.pad.remaining - b.pad.remaining)[0];
-      text = `Save up: ${v.upgrade ? v.pad.title : v.name} (${Math.ceil(v.pad.remaining)})`;
-    } else text = this.ended ? 'Pumpkin Hollow is the best farm in the county! 🎉' : 'Keep the farm running!';
+      q(v.pad.icon || '⭐', `Save up: ${v.upgrade ? v.pad.title : v.name}`, null, Math.floor(this.money), Math.ceil(v.pad.remaining));
+    } else q('🏆', this.ended ? 'Best farm in the county!' : 'Keep the farm running!', null);
     if (target && flatDist(target, pp) < 1.2 && !text.startsWith('Unlock') && !text.startsWith('Upgrade')) target = null;
 
     if (text !== this.objectiveKey) {
-      const key = text.replace(/\(\d+\)$/, '');
-      const prevKey = this.objectiveKey.replace(/\(\d+\)$/, '');
       this.objectiveKey = text;
       this.hud.objectiveText.textContent = text;
-      if (key !== prevKey) {
-        this.hud.objective.classList.remove('pop');
-        void this.hud.objective.offsetWidth;
-        this.hud.objective.classList.add('pop');
-      }
+      this.hud.objIcon.textContent = icon;
+      this.hud.objective.classList.remove('pop');
+      void this.hud.objective.offsetWidth;
+      this.hud.objective.classList.add('pop');
+    }
+    this.hud.objBar.style.display = max > 0 ? '' : 'none';
+    if (max > 0) {
+      const c = Math.min(cur, max);
+      this.hud.objFill.style.width = `${(c / max) * 100}%`;
+      this.hud.objCount.textContent = `${c}/${max}`;
     }
     if (target) {
       const d = flatDist(pp, target);
