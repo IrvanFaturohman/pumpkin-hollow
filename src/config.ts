@@ -14,7 +14,7 @@ export const CFG = {
     time: [9, 7, 5.5, 4.2], // seconds from seed to ripe
     timePrice: [80, 220, 500],
   },
-  price: { pumpkin: 4, upick: 6, cider: 8, hayride: 5, maze: 8, pie: 20 },
+  price: { pumpkin: 5, upick: 8, cider: 10, hayride: 6, maze: 10, pie: 25 },
   standSlots: 8,
   apples: { perTree: 5, regrow: 2.4 },
   press: { applesPerJug: 2, every: 1.0, maxOut: 12, maxIn: 24 },

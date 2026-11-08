@@ -65,7 +65,7 @@ const L = {
   gateOut: V(0, 0, 13.4),
   roadZ: 17.6,
   parkZ: 14.7,
-  parkSlots: [-11.2, -8.6, -6.0, -3.4, 3.4, 6.0, 8.6, 11.2],
+  parkSlots: [-13.8, -11.2, -8.6, -6.0, -3.4, 3.4, 6.0, 8.6, 11.2, 13.8],
   bounds: { minX: -15.6, maxX: 15.6, minZ: -20.2, maxZ: 12.0 } as Rect,
   patchCols: [-6.4, -5.15, -3.9, -2.65],
   patchA: [7.6, 6.35, 5.1],
@@ -1265,9 +1265,9 @@ export class Game {
     const open = this.stand.slots.some(Boolean) || this.upick || this.stats.sold > 0;
     if (open) {
       this.carT -= dt;
-      const interval = clamp(9.5 - acts.length * 1.15, 3.4, 9.5);
+      const interval = clamp(8.5 - acts.length * 1.2, 2.8, 8.5);
       const active = this.visitors.length;
-      const maxV = 4 + acts.length * 3;
+      const maxV = 5 + acts.length * 4;
       if (this.carT <= 0 && active < maxV) {
         const slot = this.slotsUsed.findIndex((c) => !c);
         if (slot >= 0) { this.spawnCar(slot); this.carT = interval * rand(0.8, 1.2); }
