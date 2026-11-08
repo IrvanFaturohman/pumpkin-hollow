@@ -237,6 +237,12 @@ class AudioEngine {
     this.tone({ freq: f, freqEnd: f * 1.5, dur: 0.1, type: 'sine', vol: 0.14, delay: 0.02 });
   }
 
+  swish() {
+    if (!this.gate('swish', 0.09)) return;
+    this.noise({ dur: 0.09, vol: 0.09, freq: 5200, freqEnd: 1800, filter: 'bandpass', q: 1.2 });
+    this.tone({ freq: 900 + Math.random() * 300, freqEnd: 500, dur: 0.06, type: 'triangle', vol: 0.03 });
+  }
+
   rustle() {
     if (!this.gate('rustle', 0.06)) return;
     this.noise({ dur: 0.16, vol: 0.09, freq: 4200, filter: 'bandpass', q: 0.7 });

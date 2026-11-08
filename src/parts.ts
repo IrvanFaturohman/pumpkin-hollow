@@ -5,7 +5,7 @@ import { coinGeo, coinMat } from './farm';
 import { arcMove, popIn, squash, tweens, ease, damp } from './util';
 import { sfx } from './audio';
 
-export const ITEM_H: Record<ItemKind, number> = { pumpkin: 0.4, apple: 0.24, cider: 0.44, pie: 0.13 };
+export const ITEM_H: Record<ItemKind, number> = { grass: 0.15, hay: 0.31, pumpkin: 0.42, apple: 0.25, cider: 0.45, pie: 0.12 };
 
 /** Little stack of flat gold coins (used for money piles). */
 export function makeCoinBrick() {
@@ -36,14 +36,10 @@ export class Stack {
   has(k: ItemKind) { return this.items.some((i) => i.kind === k); }
 
   private slotLocal(index: number, out = new THREE.Vector3()) {
-    // two columns side by side: each row is as tall as its taller item
+    // single column (carried on the back)
     let y = 0;
-    const row = Math.floor(index / 2);
-    for (let r = 0; r < row; r++) {
-      const a = this.items[r * 2], b = this.items[r * 2 + 1];
-      y += Math.max(a ? ITEM_H[a.kind] : 0, b ? ITEM_H[b.kind] : 0) + 0.01;
-    }
-    return out.set(index % 2 ? 0.25 : -0.25, y, 0);
+    for (let i = 0; i < index && i < this.items.length; i++) y += ITEM_H[this.items[i].kind] + 0.005;
+    return out.set(0, y, 0);
   }
 
   /** Take a mesh that sits in world space and fly it onto the top of the stack. */
@@ -87,8 +83,8 @@ export class Stack {
       const it = this.items[i];
       if (!it.landed) continue;
       this.slotLocal(i, tmp);
-      const sway = Math.sin(this.t * 7 - i * 0.45) * 0.016 * (i >> 1) * Math.min(1, this.lean / 3);
-      tmp.z += -this.lean * 0.006 * Math.pow(i >> 1, 1.25);
+      const sway = Math.sin(this.t * 7 - i * 0.45) * 0.012 * i * Math.min(1, this.lean / 3);
+      tmp.z += -this.lean * 0.006 * Math.pow(i, 1.2);
       tmp.x += sway;
       it.mesh.position.x = damp(it.mesh.position.x, tmp.x, 18, dt);
       it.mesh.position.y = damp(it.mesh.position.y, tmp.y, 18, dt);

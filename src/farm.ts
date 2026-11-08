@@ -806,3 +806,82 @@ export function makeCar(color: number): THREE.Group | null {
   g.userData = { body, type: k };
   return g;
 }
+
+// ---------------- Grass / hay items, hay baler, sickle ----------------
+export const grassBundleGeo = build([
+  { geo: B(0.52, 0.12, 0.4), color: 0x5fae38, pos: [0, 0.06, 0] },
+  { geo: B(0.54, 0.05, 0.08), color: 0xb98a4a, pos: [0, 0.08, -0.1] },
+  { geo: B(0.54, 0.05, 0.08), color: 0xb98a4a, pos: [0, 0.08, 0.1] },
+  { geo: new THREE.ConeGeometry(0.06, 0.16, 4), color: 0x7cc943, pos: [-0.14, 0.18, 0], rot: [0, 0, 0.5] },
+  { geo: new THREE.ConeGeometry(0.06, 0.15, 4), color: 0x6fbf3a, pos: [0.12, 0.17, 0.05], rot: [0, 0, -0.5] },
+  { geo: new THREE.ConeGeometry(0.05, 0.14, 4), color: 0x8fd14f, pos: [0.0, 0.18, -0.08], rot: [-0.5, 0, 0] },
+]);
+export function makeGrassBundle() { return vmesh(grassBundleGeo); }
+
+export const hayBaleGeo = build([
+  { geo: B(0.56, 0.3, 0.4), color: 0xf0c75a, pos: [0, 0.15, 0] },
+  { geo: B(0.58, 0.04, 0.42), color: 0xc99a35, pos: [0, 0.22, 0] },
+  { geo: B(0.58, 0.04, 0.42), color: 0xc99a35, pos: [0, 0.08, 0] },
+  { geo: B(0.5, 0.03, 0.34), color: 0xf8dc85, pos: [0, 0.31, 0] },
+]);
+export function makeHayBale() { return vmesh(hayBaleGeo); }
+
+export function makeAnyItem(kind: string) {
+  if (kind === 'grass') return makeGrassBundle();
+  if (kind === 'hay') return makeHayBale();
+  return makeItem(kind as 'pumpkin' | 'apple' | 'cider' | 'pie');
+}
+
+/** Red hay baler: hopper on top, a ram that thumps, bales come out of the side chute. */
+export function makeBaler() {
+  const g = new THREE.Group();
+  const base = rbox(2.0, 0.9, 1.4, 0.15, 0xd9473a);
+  base.position.y = 0.15;
+  g.add(base);
+  const skirt = box(2.05, 0.18, 1.45, 0x8a2f26);
+  skirt.position.y = 0.09;
+  g.add(skirt);
+  for (const sx of [-0.7, 0.7]) for (const sz of [-0.72, 0.72]) {
+    const w = cyl(0.22, 0.22, 0.14, 0x2b2f38, 12);
+    w.rotation.x = Math.PI / 2;
+    w.position.set(sx, 0.22, sz);
+    g.add(w);
+  }
+  const hopper = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.38, 0.7, 4, 1, true), mat(0xffc93c, { flat: true }));
+  hopper.rotation.y = Math.PI / 4;
+  hopper.position.set(-0.3, 1.45, -0.1);
+  hopper.castShadow = true;
+  (hopper.material as THREE.Material).side = THREE.DoubleSide;
+  g.add(hopper);
+  const ram = new THREE.Group();
+  const block = box(0.5, 0.45, 0.6, 0x9aa3ad);
+  ram.add(block);
+  const rod = cyl(0.06, 0.06, 0.5, 0x555b66, 8);
+  rod.position.y = 0.45;
+  ram.add(rod);
+  ram.position.set(0.55, 1.35, 0);
+  g.add(ram);
+  g.userData.ram = ram;
+  const chute = box(0.7, 0.12, 0.6, 0x7a4f2e);
+  chute.position.set(1.25, 0.55, 0);
+  chute.rotation.z = -0.35;
+  g.add(chute);
+  const sign = makeSign('HAY BALER', '#d9473a', '#ffffff', 1.3, 0.32, 70);
+  sign.position.set(0, 0.62, 0.71);
+  g.add(sign);
+  return g;
+}
+
+/** Simple sickle for the farmer's hand. */
+export function makeSickle() {
+  const g = new THREE.Group();
+  const handle = cyl(0.03, 0.035, 0.32, 0x8a5a33, 6);
+  handle.position.y = -0.1;
+  g.add(handle);
+  const blade = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 4, 12, Math.PI * 1.1), mat(0xdfe6ee, { flat: true }));
+  blade.position.set(0.12, 0.08, 0);
+  blade.rotation.z = -0.4;
+  blade.castShadow = true;
+  g.add(blade);
+  return g;
+}
